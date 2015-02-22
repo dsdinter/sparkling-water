@@ -1,20 +1,57 @@
 # Sparkling Water
 
-Sparkling Water integrates H<sub>2</sub>O fast scalable machine learning engine with Spark.
+- [Requirements](#Req)
+- [Contributing](#Contrib)
+- [Issues](#Issues)
+- [Mailing List](#MailList)
+- [Binary downloads](#Binary)
+- [Making a build](#MakeBuild)
+- [Sparkling Shell](#SparkShell)
+- [Running Examples](#RunExample)
+- [Additional Examples](#MoreExamples)
+- [Docker Support](#Docker)
+- [FAQ](#FAQ)
 
+
+
+Sparkling Water integrates H<sub>2</sub>O's fast scalable machine learning engine with Spark.
+
+<a name="Req"></a>
 ## Requirements
 
-  * Linux or OS X (Windows support is coming)
+  * Linux or OS X (Windows support is pending)
   * Java 7
-  * Spark 1.1.0 
-    * `SPARK_HOME` shell variable should point to your local Spark installation
+  * [Spark 1.2.0](https://spark.apache.org/downloads.html)
+    * `SPARK_HOME` shell variable must point to your local Spark installation
  
+---
+<a name="Contrib"></a>
+## Contributing
+
+
+Look at our [list of JIRA tasks](https://0xdata.atlassian.net/issues/?filter=13600) for new contributors or send your idea to [support@h2o.ai](mailto:support@h2o.ai).
+
+---
+<a name="Issues"></a>
+## Issues 
+For issues reporting please use JIRA at [http://jira.h2o.ai/](http://jira.h2o.ai/).
+
+---
+<a name="MailList"></a>
+## Mailing list
+
+Follow our [H2O Stream](https://groups.google.com/forum/#!forum/h2ostream).
+
+---
+<a name="Binary"></a>
 ## Downloads of binaries
    * [Sparkling Water - Latest version](http://h2o-release.s3.amazonaws.com/sparkling-water/master/latest.html)
 
-## Building
+---
+<a name="MakeBuild"></a>
+## Making a build
 
-Use provided `gradlew` to build project:
+Use the provided `gradlew` to build project:
 
 ```
 ./gradlew build
@@ -22,9 +59,38 @@ Use provided `gradlew` to build project:
 
 > To avoid running tests, please, use `-x test` option
 
+---
+<a name="SparkShell"></a>
+## Sparkling shell
+
+The Sparkling shell provides a regular Spark shell that supports creation of an H<sub>2</sub>O cloud and execution of H<sub>2</sub>O algorithms.
+
+First, build a package containing Sparkling water:
+```
+./gradlew assemble
+```
+
+Configure the location of Spark cluster:
+```
+export SPARK_HOME="/path/to/spark/installation"
+export MASTER="local-cluster[3,2,1024]"
+```
+
+> In this case `local-cluster[3,2,1024]` points to embedded cluster of 3 worker nodes, each with 2 cores and 1G of memory.
+
+And run Sparkling Shell:
+```
+bin/sparkling-shell
+```
+
+> Sparkling Shell accepts common Spark Shell arguments. For example, to increase memory allocated by each executor use the `spark.executor.memory` parameter: `bin/sparkling-shell --conf "spark.executor.memory=4g"`
+
+---
+
+<a name="RunExample"></a>
 ## Running examples
 
-Build a package which can be submitted to Spark cluster:
+Build a package that can be submitted to Spark cluster:
 ```
 ./gradlew assemble
 ```
@@ -41,112 +107,38 @@ And run the example:
 ```
 bin/run-example.sh
 ```
-This runs the Deep Learning demo.  It is finished when you see the line (Ctrl-C to stop the demo cluster):
-```
-===> Model predictions: 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, ...
-```
-For more details about the demo, please see the README.md file in the examples directory.
 
+For more details about the demo, please see the [README.md](examples/README.md) file in the [examples directory](examples/).
 
-## Sparkling shell
+---
+<a name="MoreExamples"></a>
+### Additional Examples
+You can find more examples in the [examples folder](examples/).
 
-The Sparkling shell provides a regular Spark shell with support to create a H<sub>2</sub>O cloud and execute H<sub>2</sub>O algorithms.
+---  
+<a name="Docker"></a>
+## Docker Support
 
-First, build a package containing Sparkling water
-```
-./gradlew assemble
-```
+See [docker/README.md](docker/README.md) to learn about Docker support.
 
-Configure the location of Spark cluster:
-```
-export SPARK_HOME="/path/to/spark/installation"
-export MASTER="local-cluster[3,2,1024]"
-```
-> In this case `local-cluster[3,2,1024]` points to embedded cluster of 3 worker nodes, each with 2 cores and 1G of memory.
+---
 
-And run Sparkling Shell:
-```
-bin/sparkling-shell
-```
+<a name="FAQ"></a>
+## FAQ
 
-> Sparkling Shell accepts common Spark Shell arguments. For example, to increase memory allocated by each executor it > is possible to pass `spark.executor.memory` parameter:
-> `bin/sparkling-shell --conf "spark.executor.memory=4g"`
-
-### Simple Example
-
-1. Run Sparkling shell with an embedded cluster:
-  ```
-  export SPARK_HOME="/path/to/spark/installation"
-  export MASTER="local-cluster[3,2,1024]"
-  bin/sparkling-shell
-  ```
-
-2. You can go to [http://localhost:4040/](http://localhost:4040/) to see the Sparkling shell (i.e., Spark driver) status.
-
-
-3. Now you can launch H<sub>2</sub>O inside the Spark cluster:
-  ```scala
-  import org.apache.spark.h2o._
-  val h2oContext = new H2OContext(sc).start()
-  import h2oContext._
-  ```
-
-  > Note: The H2OContext#start API call figures out number of Spark workers and
-  > launch corresponding number of H2O instances inside Spark cluster.
-
-
-4. Import the provided airlines data, parse them via H<sub>2</sub>O parser:
-  ```scala
-  import java.io.File
-  val dataFile = "examples/smalldata/allyears2k_headers.csv.gz"
-  val airlinesData = new DataFrame(new File(dataFile))
-  ```
-
-5. Use the data via RDD API:
-  ```scala
-  import org.apache.spark.examples.h2o._
-  val airlinesTable : RDD[Airlines] = toRDD[Airlines](airlinesData)
-  ```
-
-6. Compute the number of rows inside RDD:
-  ```scala
-  airlinesTable.count
-  ```
-  or compute the number of rows via H<sub>2</sub>O API:
-  ```scala
-  airlinesData.numRows()
-  ```
-
-7. Select only flights with destination in SFO with help of Spark SQL:
-  ```scala
-  import org.apache.spark.sql.SQLContext
-  val sqlContext = new SQLContext(sc)
-  import sqlContext._ 
-  airlinesTable.registerTempTable("airlinesTable")
-
-  // Select only interesting columns and flights with destination in SFO
-  val query = "SELECT * FROM airlinesTable WHERE Dest LIKE 'SFO'"
-  val result = sql(query)
-  ```
-
-8. Launch the H<sub>2</sub>O algorithm on the result of the SQL query:
-  ```scala
-  import hex.deeplearning._
-  import hex.deeplearning.DeepLearningModel.DeepLearningParameters
-
-  val dlParams = new DeepLearningParameters()
-  dlParams._training_frame = result('Year, 'Month, 'DayofMonth, 'DayOfWeek, 'CRSDepTime, 'CRSArrTime,
-                                    'UniqueCarrier, 'FlightNum, 'TailNum, 'CRSElapsedTime, 'Origin, 'Dest,
-                                    'Distance, 'IsDepDelayed)
-  dlParams._response_column = 'IsDepDelayed
-  // Launch computation
-  val dl = new DeepLearning(dlParams)
-  val dlModel = dl.trainModel.get
-  ```
+* Where do I find the Spark logs?
   
-9. Use the model for prediction:
-  ```scala
-  val predictionH2OFrame = dlModel.score(result)('predict)
-  val predictionsFromModel = toRDD[DoubleHolder](predictionH2OFrame).collect.map(_.result.getOrElse(Double.NaN))
-  ```
+ > Look for `$SPARK_HOME/work/app-XXX`. The last part of the address is the name of your application.
+ 
+* Spark is too slow during start or H2O is not able to cluster.
   
+ > Configure the Spark variable `SPARK_LOCAL_IP`. For example: 
+  ```
+  export SPARK_LOCAL_IP='127.0.0.1'
+  ```  
+* How do I increase the amount of memory assigned to the Spark executors in Sparkling Shell?
+ 
+ > Sparkling Shell accepts common Spark Shell arguments. For example, to increase
+ > the amount of memory allocated by each executor, use the `spark.executor.memory`
+ > parameter: `bin/sparkling-shell --conf "spark.executor.memory=4g"`
+

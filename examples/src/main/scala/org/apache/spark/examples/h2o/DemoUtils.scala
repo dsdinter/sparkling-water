@@ -1,14 +1,16 @@
 package org.apache.spark.examples.h2o
 
+import hex.splitframe.ShuffleSplitFrame
+import hex.tree.gbm.GBMModel
 import org.apache.spark.{SparkConf, SparkContext}
-import water.fvec.{DataFrame, Chunk}
+import water.fvec.{Frame, DataFrame, Chunk}
 import water.parser.ValueString
-import water.{H2OClientApp, MRTask, H2O, H2OApp}
+import water._
 
 /**
  * Shared demo utility functions.
  */
-private[h2o] object DemoUtils {
+object DemoUtils {
 
   def createSparkContext(sparkMaster:String = null, registerH2OExtension: Boolean = true): SparkContext = {
     val h2oWorkers = System.getProperty("spark.h2o.workers", "3") // N+1 workers, one is running in driver
@@ -67,17 +69,57 @@ private[h2o] object DemoUtils {
           for (c <- cs) {
             val vstr = new ValueString
             if (c.vec().isString) {
-              c.atStr0(vstr, r)
+              c.atStr(vstr, r)
               print(vstr.toString + ",")
             } else if (c.vec().isEnum) {
-              print(c.vec().domain()(c.at80(r).asInstanceOf[Int]) + ", ")
+              print(c.vec().domain()(c.at8(r).asInstanceOf[Int]) + ", ")
             } else {
-              print(c.at0(r) + ", ")
+              print(c.atd(r) + ", ")
             }
           }
           println()
         }
       }
     }.doAll(fr)
+  }
+
+  def residualPlotRCode(prediction:Frame, predCol: String, actual:Frame, actCol:String):String = {
+    s"""# R script for residual plot
+        |library(h2o)
+        |h = h2o.init()
+        |
+        |pred = h2o.getFrame(h, "${prediction._key}")
+        |act = h2o.getFrame (h, "${actual._key}")
+        |
+        |predDelay = pred$$${predCol}
+        |actDelay = act$$${actCol}
+        |
+        |nrow(actDelay) == nrow(predDelay)
+        |
+        |residuals = predDelay - actDelay
+        |
+        |compare = cbind (as.data.frame(actDelay$$ArrDelay), as.data.frame(residuals$$predict))
+        |nrow(compare)
+        |plot( compare[,1:2] )
+        |
+      """.stripMargin
+  }
+
+  def splitFrame(df: DataFrame, keys: Seq[String], ratios: Seq[Double]): Array[Frame] = {
+    val ks = keys.map(Key.make(_)).toArray
+    val frs = ShuffleSplitFrame.shuffleSplitFrame(df, ks, ratios.toArray, 1234567689L)
+    frs
+  }
+
+  def r2(model: GBMModel, fr: Frame) =  hex.ModelMetrics.getFromDKV(model, fr).asInstanceOf[hex.ModelMetricsSupervised].r2()
+
+  case class R2(name:String, train:Double, test:Double, hold:Double) {
+    override def toString: String =
+      s"""
+        |Results for $name:
+        |  - R2 on train = ${train}
+        |  - R2 on test  = ${test}
+        |  - R2 on hold  = ${hold}
+      """.stripMargin
   }
 }

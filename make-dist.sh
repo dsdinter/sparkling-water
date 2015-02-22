@@ -28,9 +28,21 @@ bin/sparkling-env.sh
 assembly/build/libs/sparkling-water-assembly-$VERSION-all.jar
 examples/README.md
 examples/scripts/dlDemo.script
+examples/scripts/Meetup20141217.md
 examples/smalldata/allyears2k_headers.csv.gz
 examples/smalldata/Chicago_Ohare_International_Airport.csv
 examples/smalldata/prostate.csv
+examples/smalldata/year2005.csv.gz
+docker/
+docker/README.md
+docker/bin/
+docker/bin/run-example.sh
+docker/bin/sparkling-shell
+docker/build.sh
+docker/sparkling-test/
+docker/sparkling-test/build.sh
+docker/sparkling-test/base/
+docker/sparkling-test/base/Dockerfile
 LICENSE
 README.md
 gradle.properties
@@ -59,8 +71,9 @@ rsync -rtvW --files-from "$TOPDIR/demofiles.list" "$TOPDIR/" "$DEST_DIR/"
 # Copy scaladoc
 rsync -rtvW "$SCALADOC_SRC_DIR" "$SCALADOC_DST_DIR"
 
+GITHASH=`git rev-parse --verify HEAD`
 # Copy dist dir files
-cat "$DIST_DIR/index.html" | sed -e "s/SUBST_PROJECT_VERSION/$VERSION/g" > "$DIST_BUILD_DIR/index.html"
+cat "$DIST_DIR/index.html" | sed -e "s/SUBST_PROJECT_VERSION/$VERSION/g" | sed -e "s/SUBST_PROJECT_GITHASH/${GITHASH}/g" > "$DIST_BUILD_DIR/index.html"
 
 exit 0
 

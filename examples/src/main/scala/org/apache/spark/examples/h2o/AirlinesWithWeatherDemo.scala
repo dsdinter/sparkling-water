@@ -36,7 +36,7 @@ object AirlinesWithWeatherDemo {
     // Use super-fast advanced H2O CSV parser !!!
     val airlinesData = new DataFrame(new File(SparkFiles.get("allyears2k_headers.csv.gz")))
 
-    val airlinesTable : RDD[Airlines] = toRDD[Airlines](airlinesData)
+    val airlinesTable : RDD[Airlines] = asRDD[Airlines](airlinesData)
     // Select flights only to ORD
     val flightsToORD = airlinesTable.filter(f => f.Dest==Some("ORD"))
 
@@ -48,6 +48,9 @@ object AirlinesWithWeatherDemo {
     flightsToORD.registerTempTable("FlightsToORD")
     weatherTable.registerTempTable("WeatherORD")
 
+    //
+    // -- Join both tables and select interesting columns
+    //
     val bigTable = sql(
       """SELECT
         |f.Year,f.Month,f.DayofMonth,
@@ -74,11 +77,12 @@ object AirlinesWithWeatherDemo {
     val dlModel = dl.trainModel.get
 
     val predictionH2OFrame = dlModel.score(bigTable)('predict)
-    val predictionsFromModel = toRDD[DoubleHolder](predictionH2OFrame).collect.map(_.result.getOrElse(Double.NaN))
+    val predictionsFromModel = asRDD[DoubleHolder](predictionH2OFrame).collect.map(_.result.getOrElse(Double.NaN))
     println(predictionsFromModel.mkString("\n===> Model predictions: ", ", ", ", ...\n"))
 
     println(
       s"""# R script for residual plot
+        |library(h2o)
         |h = h2o.init()
         |
         |pred = h2o.getFrame(h, "${predictionH2OFrame._key}")
@@ -96,8 +100,7 @@ object AirlinesWithWeatherDemo {
         |plot( compare[,1:2] )
         |
       """.stripMargin)
-    // Explicit sleep for long time to make cluster available from R
-    Thread.sleep(60*60*1000)
+    // Shutdown Spark cluster
     sc.stop()
   }
 }

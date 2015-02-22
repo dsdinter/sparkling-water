@@ -1,10 +1,27 @@
+/*
+* Licensed to the Apache Software Foundation (ASF) under one or more
+* contributor license agreements.  See the NOTICE file distributed with
+* this work for additional information regarding copyright ownership.
+* The ASF licenses this file to You under the Apache License, Version 2.0
+* (the "License"); you may not use this file except in compliance with
+* the License.  You may obtain a copy of the License at
+*
+*    http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+
 package org.apache.spark.h2o
 
 import java.io.File
 
-import com.google.common.io.Files
+import org.apache.spark.sql.catalyst.types._
 import org.apache.spark.{SparkContext, SparkEnv}
-import water.{H2OApp, H2O}
+import water.{H2O, H2OApp}
 
 /**
  * Support methods.
@@ -22,21 +39,25 @@ private[spark] object H2OContextUtils {
     * @return
     */
   def collectNodesInfo(distRDD: RDD[Int], basePort: Int, incrPort: Int): Array[NodeDesc] = {
-    // Collect flatfile - tuple of (IP, port)
-    val nodes = distRDD.map { index =>
+    // Collect flatfile - tuple of (executorId, IP, port)
+    val nodes = distRDD.mapPartitionsWithIndex { (idx, it) =>
       val env = SparkEnv.get
-      ( env.executorId,
+      Iterator.single(
+        ( env.executorId,
         // java.net.InetAddress.getLocalHost.getAddress.map(_ & 0xFF).mkString("."),
         // Use existing Akka setup since Spark at this point is already communicating
-        env.actorSystem.settings.config.getString("akka.remote.netty.tcp.hostname"),
+        getIp(env),
         // FIXME: verify that port is available
-        (basePort + incrPort*index))
+        (basePort + incrPort*idx) ) )
     }.collect()
-    nodes
+    // Take only unique executors
+    nodes.groupBy(_._1).map(_._2.head).toArray
   }
 
+  def getIp(env: SparkEnv) = env.actorSystem.settings.config.getString("akka.remote.netty.tcp.hostname")
+
   def saveAsFile(content: String): File = {
-    val tmpDir = Files.createTempDir()
+    val tmpDir = createTempDir()
     tmpDir.deleteOnExit()
     val flatFile = new File(tmpDir, "flatfile.txt")
     val p = new java.io.PrintWriter(flatFile)
@@ -55,10 +76,8 @@ private[spark] object H2OContextUtils {
   def toH2OArgs(h2oArgs: Array[String], h2oConf: H2OConf, executors: Array[NodeDesc]): Array[String] = {
     toH2OArgs(
       h2oArgs,
-      if (h2oConf.useFlatFile)
-        Some(toFlatFileString(executors))
-      else
-        None)
+      if (h2oConf.useFlatFile) Some(toFlatFileString(executors))
+      else None)
   }
 
   def toH2OArgs(h2oArgs: Array[String], flatFileString: Option[String]): Array[String] = {
@@ -80,18 +99,16 @@ private[spark] object H2OContextUtils {
    * @return return a tuple containing executorId and status of H2O node
    */
   def startH2O( sc: SparkContext,
-                spreadRDD: RDD[Int],
+                spreadRDD: RDD[NodeDesc],
                 executors: Array[NodeDesc],
                 h2oConf: H2OConf,
                 h2oArgs: Array[String]): Array[(String,Boolean)] = {
     //val executorIds = executors.map(_._1)
     val flatFileString =
-      if (h2oConf.useFlatFile)
-        Some(toFlatFileString(executors))
-       else
-        None
+      if (h2oConf.useFlatFile) Some(toFlatFileString(executors))
+      else None
 
-    spreadRDD.map { index =>  // RDD partition index
+    spreadRDD.map { nodeDesc =>  // RDD partition index
       // This executor
       val executorId = SparkEnv.get.executorId
       val node = executors.find( n => executorId.equals(n._1))
@@ -101,6 +118,7 @@ private[spark] object H2OContextUtils {
           // Create a flatfile if required
           val ip = node.get._2
           val port = node.get._3.toString
+
           val launcherArgs = toH2OArgs(
             h2oArgs ++ Array("-ip", ip, "-port", port),
             flatFileString)
@@ -125,5 +143,35 @@ private[spark] object H2OContextUtils {
         (executorId, false)
       }
     }.collect()
+  }
+
+  val TEMP_DIR_ATTEMPTS = 1000
+
+  private def createTempDir(): File = {
+    def baseDir = new File(System.getProperty("java.io.tmpdir"))
+    def baseName = System.currentTimeMillis() + "-"
+
+    var cnt = 0
+    while (cnt < TEMP_DIR_ATTEMPTS) {// infinite loop
+      val tempDir = new File(baseDir, baseName + cnt)
+      if (tempDir.mkdir()) return tempDir
+      cnt += 1
+    }
+    throw new IllegalStateException(s"Failed to create temporary directory $baseDir / $baseName")
+  }
+
+  /** Method translating SQL types into Sparkling Water types */
+  def dataTypeToClass(dt : DataType):Class[_] = dt match {
+    case BinaryType  => classOf[java.lang.Byte]
+    case ByteType    => classOf[java.lang.Byte]
+    case ShortType   => classOf[java.lang.Short]
+    case IntegerType => classOf[java.lang.Integer]
+    case LongType    => classOf[java.lang.Long]
+    case FloatType   => classOf[java.lang.Float]
+    case DoubleType  => classOf[java.lang.Double]
+    case StringType  => classOf[String]
+    case BooleanType => classOf[java.lang.Boolean]
+    case TimestampType => classOf[java.sql.Timestamp]
+    case _ => throw new IllegalArgumentException(s"Unsupported type $dt")
   }
 }

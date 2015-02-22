@@ -11,9 +11,6 @@ dependencies {
 
   // And Scala library
   compile "org.scala-lang:scala-library:${scalaVersion}" 
- 
-  // Force this dependency
-  runtime( "ai.h2o:h2o-flow:$h2oFlowVersion" )
 }
 
 shadowJar {
@@ -22,6 +19,8 @@ shadowJar {
     // Do not forget that Sparkling Water is intended 
     // to run inside Spark environment providing some jars 
     // (like hadoop, aws) on classpath
+    //
+    // DO NOT Forget to update a list of jars used in testAssembly task
     include(project(":sparkling-water-core"))
     include(project(":sparkling-water-examples"))
     include(dependency("ai.h2o:h2o-core"))
@@ -29,10 +28,13 @@ shadowJar {
     include(dependency("ai.h2o:h2o-app"))
     include(dependency("ai.h2o:h2o-web"))
     include(dependency("ai.h2o:h2o-algos"))
-    include(dependency("ai.h2o:h2o-flow"))
     include(dependency("joda-time:joda-time"))
     include(dependency("org.javassist:javassist"))
     include(dependency("gov.nist.math:jama"))
+    include(dependency("com.google.code.gson:gson"))
+    include(dependency("org.reflections:reflections"))
+    include(dependency("com.google.guava:guava"))
+    include(dependency("commons-collections:commons-collections"))
   }
 }
 

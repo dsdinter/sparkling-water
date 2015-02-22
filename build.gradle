@@ -21,6 +21,7 @@ buildscript {
         classpath 'org.github.mansur.scalastyle:gradle-scalastyle-plugin_2.10:0.4.1'
         classpath 'org.gradle.api.plugins:gradle-nexus-plugin:0.7.1'
         classpath 'com.github.townsfolk:gradle-release:1.2'
+        classpath 'com.adaptc.gradle:nexus-workflow:0.6'
     }
 }
 
@@ -31,7 +32,11 @@ ext {
     // Published projects
     publishedProjects = [
       project(':sparkling-water-core'),
-      project(':sparkling-water-assembly')
+      project(':sparkling-water-examples')
+    ]
+
+    integTestProjects = [
+      project(':sparkling-water-examples')
     ]
 }
 
@@ -42,14 +47,16 @@ configure(allprojects) { project ->
     apply plugin: 'idea'
     apply plugin: 'eclipse'
     apply from: "$rootDir/gradle/artifacts.gradle"
-    
+
     // Version of main components
     ext { 
       scalaVersion       = '2.10.4'
       scalaBinaryVersion = '2.10'
-      h2oVersion         = '0.1.13'
-      h2oFlowVersion     = '0.2.7'
-      sparkVersion       = '1.1.0'
+      h2oBuild           = '1064'
+      //h2oBuild           = '99999'
+      h2oVersion         = "0.1.27.$h2oBuild"
+      sparkVersion       = '1.2.0'
+      junitVersion       = '4.11'
     }
 }
 
@@ -61,21 +68,53 @@ configure(subprojects) { project ->
     version = rootProject.version
 
     repositories {
+
         mavenCentral()
+
         maven {
             url "https://repository.cloudera.com/artifactory/cloudera-repos/"
         }
+        // Public Sonatype repository
+        maven {
+            url "https://oss.sonatype.org/content/repositories/releases/"
+        }
+
+        maven {
+            url "http://h2o-release.s3.amazonaws.com/h2o-dev/master/$h2oBuild/maven/repo/"
+        }
+
         // Should be enabled only in development mode
-        //mavenLocal()
+        if (h2oBuild == '99999') mavenLocal()
     }
 
 
     // All subprojects are scala project so apply the plugin directly
     apply from: "$rootDir/gradle/scala.gradle"
-    
-    // Publish artifacts 
+    // All subprojects needs Spark support
+    apply from: "$rootDir/gradle/spark.gradle"
+
+    // Publish artifacts
     if (project in publishedProjects) {
-      apply from: "$rootDir/gradle/publish.gradle"
+        apply from: "$rootDir/gradle/publish.gradle"
+    }
+
+    if (project in integTestProjects) {
+        apply from: "$rootDir/gradle/itest.gradle"
+    }
+
+    ext {
+        // List of dependencies required for testing
+        // They will compose assembly passed to Spark cluster
+        testDependencies = ["ai.h2o:h2o-core",
+                        "ai.h2o:h2o-algos",
+                        "ai.h2o:h2o-app",
+                        "joda-time:joda-time",
+                        "org.javassist:javassist",
+                        "gov.nist.math:jama",
+                        "com.google.code.gson:gson",
+                        "org.reflections:reflections",
+                        "com.google.guava:guava",
+                        "commons-collections:commons-collections"]
     }
 }
 
